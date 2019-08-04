@@ -1,0 +1,123 @@
+<!--
+  @Component Name     : datatable.html
+  @Description        : Generic datatable which uses standard lightning-datatable for showing records in table
+                         1. Gets data from database automatically. Can use relationship fields also.
+                         2. Sort functionality
+                         3. Pagination - first, previous, next and last pages
+                         4. Persistant selection of records across pages. getSelectedRows public method to get selected data.
+                         5. All events of lightning-datatable plus event while loading data
+                         6. Cacheable data
+                         7. Sosl search
+                         8. Dynamically change data filters
+  @Author             : Sasank Subrahmanyam V
+  @Group              : 
+  @Last Modified By   : Sasank Subrahmanyam V
+  @Last Modified On   : 8/3/2019, 3:56:25 PM
+  @Modification Log   : 
+  ==============================================================================
+  Ver         Date                     Author      		      Modification
+  ==============================================================================
+  1.0    8/1/2019, 11:19:50 AM   Sasank Subrahmanyam V     Initial Version
+-->
+<template>
+
+    <div class="slds-theme_default">
+        <!-- ERRORS -->
+        <template if:true={error}>
+            <div class="slds-box slds-theme_error">
+                {error}
+            </div>
+        </template>
+
+        <div class="slds-is-relative">
+            <template if:true={showMessage}>
+                <div class="slds-theme_default slds-box slds-align_absolute-center">
+                    <template if:true={showSpinner}>
+                        <lightning-spinner variant="brand"></lightning-spinner>
+                    </template>
+                    <div>
+                        {userMessage}
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <template if:false={userMessage}>
+            <lightning-datatable key-field="Id"
+                                 data={recordsListInPage}
+                                 columns={tableProps.columns}
+                                 selected-rows={tableProps.selectedRows}
+                                 hide-checkbox-column={tableProps.hideCheckboxColumn}
+                                 show-row-number-column={tableProps.showRowNumberColumn}
+                                 row-number-offset={tableProps.rowNumberOffset}
+                                 resize-column-disabled={tableProps.resizeColumnDisabled}
+                                 min-column-width={tableProps.minColumnWidth}
+                                 max-column-width={tableProps.maxColumnWidth}
+                                 resize-step={tableProps.resizeStep}
+                                 sorted-by={tableProps.sortedBy}
+                                 sorted-direction={tableProps.sortedDirection}
+                                 default-sort-direction={tableProps.defaultSortDirection}
+                                 enable-infinite-loading={tableProps.enableInfiniteLoading}
+                                 load-more-offset={tableProps.loadMoreOffset}
+                                 is-loading={tableProps.isLoading}
+                                 max-row-selection={tableProps.maxRowSelection}
+                                 errors={tableProps.errors}
+                                 draft-values={tableProps.draftValues}
+                                 hide-table-header={tableProps.hideTableHeader}
+                                 suppress-bottom-bar={tableProps.suppressBottomBar}
+                                 oncancel={handleCancel}
+                                 onresize={handleResize}
+                                 onrowselection={handleRowSelection}
+                                 onsave={handleSave}
+                                 onsort={handleSort}
+                                 onrowaction={handleRowAction}>
+            </lightning-datatable>
+        </template>
+
+        <template if:false={hidePagination}>
+            <lightning-layout multiple-rows class="slds-m-vertical_x-small slds-p-horizontal_small">
+                <lightning-layout-item size="4">
+                    <div class="slds-float_left">
+                        {pagesInfo}
+                    </div>
+                </lightning-layout-item>
+                <lightning-layout-item size="4">
+                    <div class="slds-align_absolute-center">
+                        <a onclick={pageSizeChanged}>
+                            <lightning-button-icon icon-name="utility:left"
+                                                   size="small"
+                                                   alternative-text="First">
+                            </lightning-button-icon>
+                        </a>
+                        <a onclick={showPreviousPage}>
+                            <lightning-button-icon icon-name="utility:chevronleft"
+                                                   size="small"
+                                                   alternative-text="Previous">
+                            </lightning-button-icon>
+                        </a>
+                        <a onclick={showNextPage}>
+                            <lightning-button-icon icon-name="utility:chevronright"
+                                                   size="small"
+                                                   alternative-text="Next">
+                            </lightning-button-icon>
+                        </a>
+                        <a onclick={showLastPage}>
+                            <lightning-button-icon icon-name="utility:right"
+                                                   size="small"
+                                                   alternative-text="Next">
+                            </lightning-button-icon>
+                        </a>
+                    </div>
+                </lightning-layout-item>
+                <lightning-layout-item size="4">
+                    <div class="slds-float_right">
+                        <span>
+                            {recordsInfo}
+                        </span>
+                    </div>
+                </lightning-layout-item>
+            </lightning-layout>
+        </template>
+    </div>
+
+</template>

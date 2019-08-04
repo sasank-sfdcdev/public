@@ -1,0 +1,55 @@
+<!--
+  @Component Name     : upload.html
+  @Description        : 
+  @Author             : Sasank Subrahmanyam V
+  @Group              : 
+  @Last Modified By   : Sasank Subrahmanyam V
+  @Last Modified On   : 8/3/2019, 3:29:50 PM
+  @Modification Log   : 
+  ==============================================================================
+  Ver         Date                     Author      		      Modification
+  ==============================================================================
+  1.0    5/18/2019, 12:30:50 AM   Sasank Subrahmanyam V     Initial Version
+-->
+<template>
+
+    <div class="slds-theme_default slds-is-relative">
+        <lightning-spinner data-id="spinner" variant="brand" class="slds-hide"></lightning-spinner>
+
+        <div class="slds-m-around_small">
+            <lightning-file-upload label={label}
+                                   name="fileUploader"
+                                   record-id={uploadToId}
+                                   accept={accept}
+                                   multiple={multiple}
+                                   onuploadfinished={handleUploadFinished}>
+            </lightning-file-upload>
+        </div>
+
+        <div class="slds-box slds-box_xx-small">
+
+            <lightning-layout multiple-rows>
+                <lightning-layout-item size="6" padding="around-small">
+                    <div onkeyup={searchFiles}>
+                        <lightning-input class="id-search-str"
+                                         variant="label-hidden"
+                                         placeholder="Search Files...">
+                        </lightning-input>
+                    </div>
+                </lightning-layout-item>
+                <lightning-layout-item size="6" padding="around-small">
+                    <lightning-button label="Search" onclick={doSearch}></lightning-button>
+                </lightning-layout-item>
+            </lightning-layout>
+
+            <c-datatable data-id="documents"
+                         config={documentsConfig}
+                         query-filters={queryFilters}
+                         onrowaction={handleRowAction}>
+            </c-datatable>
+
+        </div>
+
+    </div>
+
+</template>
