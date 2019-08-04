@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>upload</members>
+        <members>datatable</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>datatableController</members>
+        <members>uploadController</members>
+        <name>ApexClass</name>
+    </types>
+    <version>46.0</version>
+</Package>
