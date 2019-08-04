@@ -1,0 +1,25 @@
+{
+    "alias": "",
+    "apiVersion": "46.0",
+    "deployOptions": {
+        "allowMissingFiles": true,
+        "checkOnly": false,
+        "ignoreWarnings": true,
+        "purgeOnDelete": false,
+        "rollbackOnError": true,
+        "runTests": [],
+        "singlePackage": true,
+        "testLevel": "NoTestRun"
+    },
+    "overwritePackageXML": false,
+    "poll": 2000,
+    "pollTimeout": 1200,
+    "prefix": "",
+    "showTestCoverage": true,
+    "spaDist": "",
+    "src": "src",
+    "staticResourceCacheControl": "Private",
+    "url": "https://login.salesforce.com",
+    "autoCompile": false,
+    "username": "sasank.github@gmail.com"
+}
