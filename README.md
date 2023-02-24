@@ -5,6 +5,7 @@ Currently there are 2 generic components (PFB). Very soon I will add DEMO compon
 
 1. datatable: Generic datatable which uses standard lightning-datatable for showing records in table <br/>
      1. Gets data from database automatically. Can use relationship fields also. <br/>
+     * This fork adds support for sorting by related fields <br/>
      2. Sort functionality <br/>
      3. Pagination - first, previous, next and last pages <br/>
      4. Persistant selection of records across pages. getSelectedRows public method to get selected data. <br/>
