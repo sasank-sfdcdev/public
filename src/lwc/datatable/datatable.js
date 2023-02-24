@@ -13,8 +13,8 @@
  * 1.0    8/1/2019, 11:08:28 AM   Sasank Subrahmanyam V     Initial Version
 **/
 import { LightningElement, api, track } from 'lwc';
-import fetchDataMap from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMap';
-import fetchDataMapCached from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMapCached';
+import fetchDataMap from '@salesforce/apex/datatableController.fetchDataMap';
+import fetchDataMapCached from '@salesforce/apex/datatableController.fetchDataMapCached';
 
 export default class Datatable extends LightningElement {
     // this will have all the configuration for table
