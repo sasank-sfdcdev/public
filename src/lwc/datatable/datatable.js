@@ -14,9 +14,9 @@
  * Alon Waisman, 2/27/2023: Added support for live fetching of field labels and type (so they don't need to be added in the table config)
 **/
 import { LightningElement, api, track } from 'lwc';
-import fetchDataMap       from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMap';
-import fetchDataMapCached from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMapCached';
-import getFieldInfo       from '@salesforce/apex/Datatable_LWC_Controller.fieldInfo';
+import fetchDataMap       from '@salesforce/apex/datatableController.fetchDataMap';
+import fetchDataMapCached from '@salesforce/apex/datatableController.fetchDataMapCached';
+import getFieldInfo       from '@salesforce/apex/datatableController.fieldInfo';
 
 export default class Datatable extends LightningElement {
     // this will have all the configuration for table
