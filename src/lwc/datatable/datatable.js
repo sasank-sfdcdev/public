@@ -2,18 +2,21 @@
  * @File Name          : datatable.js
  * @Description        : Methods supporting functionalities of datatable
  * @Author             : Sasank Subrahmanyam V
- * @Group              : 
+ * @Group              :
  * @Last Modified By   : Sasank Subrahmanyam V
  * @Last Modified On   : 8/3/2019, 3:17:35 PM
- * @Modification Log   : 
+ * @Modification Log   :
  *==============================================================================
  * Ver         Date                     Author      		      Modification
  *==============================================================================
  * 1.0    8/1/2019, 11:08:28 AM   Sasank Subrahmanyam V     Initial Version
+ * Alon Waisman, 2/24/2023: Added support for sorting by related fields
+ * Alon Waisman, 2/27/2023: Added support for live fetching of field labels and type (so they don't need to be added in the table config)
 **/
 import { LightningElement, api, track } from 'lwc';
-import fetchDataMap from '@salesforce/apex/datatableController.fetchDataMap';
+import fetchDataMap       from '@salesforce/apex/datatableController.fetchDataMap';
 import fetchDataMapCached from '@salesforce/apex/datatableController.fetchDataMapCached';
+import getFieldInfo       from '@salesforce/apex/datatableController.fieldInfo';
 
 export default class Datatable extends LightningElement {
     // this will have all the configuration for table
@@ -22,11 +25,11 @@ export default class Datatable extends LightningElement {
     // Name of the object from from records have to be queried
     @track objectName;
 
-    // All the attributes of lightning-datatable should be mentioned in this attribute (tableConfig). 
+    // All the attributes of lightning-datatable should be mentioned in this attribute (tableConfig).
     // It should be either kebab casing or camel casing
     @track tableConfig = {};
 
-    // By which field should the query sort the records from database  
+    // By which field should the query sort the records from database
     @track sortBy;
 
     // For the field mentioned above, should it be ascending (true) or descending (false)
@@ -50,7 +53,7 @@ export default class Datatable extends LightningElement {
     // set height of table
     @track height = '10rem';
 
-    // internally used tracked variables for data processing 
+    // internally used tracked variables for data processing
     @track tableProps = {};
     @track recordsListInPage = [];
     @track selectedRowsMap = {};
@@ -72,7 +75,7 @@ export default class Datatable extends LightningElement {
 
     // exposed api methods ----------------------------------------------------------------------------------------
 
-    // for setting custom messages in different contexts 
+    // for setting custom messages in different contexts
     @api
     get userMessages() {
         if (this.isNotBlank(this._userMessages)) return this._userMessages;
@@ -200,16 +203,18 @@ export default class Datatable extends LightningElement {
         this.tableProps.sortedDirection = event.detail.sortDirection;
 
         this._recordsListInAllPages.sort((a, b) => {
-            if (!a[this.tableProps.sortedBy]) return 1;
-            if (!b[this.tableProps.sortedBy]) return -1;
+            let aFieldValue = this.relatedFieldValue(a, this.tableProps.sortedBy);
+            let bFieldValue = this.relatedFieldValue(b, this.tableProps.sortedBy);
+            if (!aFieldValue) return 1;
+            if (!bFieldValue) return -1;
             if (this.tableProps.sortedDirection === "asc") {
-                if (a[this.tableProps.sortedBy] < b[this.tableProps.sortedBy]) return -1;
-                else if (a[this.tableProps.sortedBy] > b[this.tableProps.sortedBy]) return 1;
+                if (aFieldValue < bFieldValue) return -1;
+                else if (aFieldValue > bFieldValue) return 1;
                 if (a.Id < b.Id) return -1;
                 return 1;
             }
-            if (a[this.tableProps.sortedBy] < b[this.tableProps.sortedBy]) return 1;
-            else if (a[this.tableProps.sortedBy] > b[this.tableProps.sortedBy]) return -1;
+            if (aFieldValue < bFieldValue) return 1;
+            else if (aFieldValue > bFieldValue) return -1;
             if (a.Id > b.Id) return -1;
             return 1;
         });
@@ -217,6 +222,11 @@ export default class Datatable extends LightningElement {
         this._startFromIndex = 0;
         this.processRecordsListPagination();
     }
+        relatedFieldValue(anObject, relatedField) {
+            return relatedField.split('.').reduce(function (previous, current) {
+                return previous ? previous[current] : null
+            }, anObject || self);
+        }
 
     // init processing ------------------------------------------------------------------------------------
     processConfig() {
@@ -257,13 +267,12 @@ export default class Datatable extends LightningElement {
         if (this.config.hasOwnProperty("table-config") || this.config.hasOwnProperty("tableConfig")) {
             this.tableConfig = this.config["table-config"] || this.config.tableConfig;
             this.processTableConfig();
-            this.fields = this.tableProps.columns.filter(col => col.hasOwnProperty("api")).map(col => col.api).join();
         }
     }
 
     // get datatable attributes --------------------------------------------------------------------------
     processTableConfig() {
-        this.tableProps.columns = this.tableConfig.columns;
+        this.manageColumns();
         this.tableProps.sortedBy = "";
         this.tableProps.sortedDirection = "";
         if (this.tableConfig.hasOwnProperty("hideCheckboxColumn") || this.tableConfig.hasOwnProperty("hide-checkbox-column"))
@@ -318,6 +327,24 @@ export default class Datatable extends LightningElement {
             this.tableProps.suppressBottomBar = this.tableConfig.suppressBottomBar || this.tableConfig["suppress-bottom-bar"];
         else this.tableProps.suppressBottomBar = false;
     }
+        manageColumns() {
+            let columnsClone = JSON.parse(JSON.stringify(this.tableConfig.columns));
+            let apiNames     = columnsClone.filter(col => col.hasOwnProperty("api")).map(col => col.api);
+            this.fields      = apiNames.join();
+
+            getFieldInfo({ objectName: this.objectName, fieldNames: apiNames })
+                .then(fieldInfo => {
+                    columnsClone.forEach(column => {
+                        if (fieldInfo.hasOwnProperty(column.api)) {
+                            if (!column.hasOwnProperty('fieldName')) { column.fieldName = column.api; }
+                            if (!column.hasOwnProperty('label'))     { column.label     = fieldInfo[column.api].label; }
+                            if (!column.hasOwnProperty('type'))      { column.type      = fieldInfo[column.api].type; }
+                        }
+                    });
+
+                    this.tableProps.columns = columnsClone;
+                });
+        }
 
     // retrieve the records form database
     fetchRecords() {
