@@ -6,15 +6,17 @@
  * @Last Modified By   : Sasank Subrahmanyam V
  * @Last Modified On   : 8/3/2019, 3:17:35 PM
  * @Modification Log   :
-    - Alon Waisman, 2/24/2023: Added support for sorting by related fields
  *==============================================================================
  * Ver         Date                     Author      		      Modification
  *==============================================================================
  * 1.0    8/1/2019, 11:08:28 AM   Sasank Subrahmanyam V     Initial Version
+ * Alon Waisman, 2/24/2023: Added support for sorting by related fields
+ * Alon Waisman, 2/27/2023: Added support for live fetching of field labels and type (so they don't need to be added in the table config)
 **/
 import { LightningElement, api, track } from 'lwc';
-import fetchDataMap from '@salesforce/apex/datatableController.fetchDataMap';
-import fetchDataMapCached from '@salesforce/apex/datatableController.fetchDataMapCached';
+import fetchDataMap       from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMap';
+import fetchDataMapCached from '@salesforce/apex/Datatable_LWC_Controller.fetchDataMapCached';
+import getFieldInfo       from '@salesforce/apex/Datatable_LWC_Controller.fieldInfo';
 
 export default class Datatable extends LightningElement {
     // this will have all the configuration for table
@@ -265,13 +267,12 @@ export default class Datatable extends LightningElement {
         if (this.config.hasOwnProperty("table-config") || this.config.hasOwnProperty("tableConfig")) {
             this.tableConfig = this.config["table-config"] || this.config.tableConfig;
             this.processTableConfig();
-            this.fields = this.tableProps.columns.filter(col => col.hasOwnProperty("api")).map(col => col.api).join();
         }
     }
 
     // get datatable attributes --------------------------------------------------------------------------
     processTableConfig() {
-        this.tableProps.columns = this.tableConfig.columns;
+        this.manageColumns();
         this.tableProps.sortedBy = "";
         this.tableProps.sortedDirection = "";
         if (this.tableConfig.hasOwnProperty("hideCheckboxColumn") || this.tableConfig.hasOwnProperty("hide-checkbox-column"))
@@ -326,6 +327,24 @@ export default class Datatable extends LightningElement {
             this.tableProps.suppressBottomBar = this.tableConfig.suppressBottomBar || this.tableConfig["suppress-bottom-bar"];
         else this.tableProps.suppressBottomBar = false;
     }
+        manageColumns() {
+            let columnsClone = JSON.parse(JSON.stringify(this.tableConfig.columns));
+            let apiNames     = columnsClone.filter(col => col.hasOwnProperty("api")).map(col => col.api);
+            this.fields      = apiNames.join();
+
+            getFieldInfo({ objectName: this.objectName, fieldNames: apiNames })
+                .then(fieldInfo => {
+                    columnsClone.forEach(column => {
+                        if (fieldInfo.hasOwnProperty(column.api)) {
+                            if (!column.hasOwnProperty('fieldName')) { column.fieldName = column.api; }
+                            if (!column.hasOwnProperty('label'))     { column.label     = fieldInfo[column.api].label; }
+                            if (!column.hasOwnProperty('type'))      { column.type      = fieldInfo[column.api].type; }
+                        }
+                    });
+
+                    this.tableProps.columns = columnsClone;
+                });
+        }
 
     // retrieve the records form database
     fetchRecords() {
