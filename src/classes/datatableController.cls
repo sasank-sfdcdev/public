@@ -12,7 +12,7 @@
  * 1.0    8/1/2019, 1:50:15 PM   Sasank Subrahmanyam V     Initial Version
  * Alon Waisman, 2/27/2023: Added support for fetching field labels and type (so they don't need to be added in the table config)
 **/
-public with sharing class Datatable_LWC_Controller {
+public with sharing class datatableController {
 
     @AuraEnabled(Cacheable=true)
     public static Map<String, Map<String, String>> fieldInfo(String objectName, String[] fieldNames){
