@@ -11,6 +11,7 @@
  *==============================================================================
  * 1.0    8/1/2019, 1:50:15 PM   Sasank Subrahmanyam V     Initial Version
  * Alon Waisman, 2/27/2023: Added support for fetching field labels and type (so they don't need to be added in the table config)
+ * Alon Waisman, 3/27/2024: Simplified a few lines in fetchDataMap and removed 'Id' from the SOQL query to avoid an error when the user includes it in the provided list of fields
 **/
 public with sharing class datatableController {
 
@@ -74,14 +75,14 @@ public with sharing class datatableController {
 
     @AuraEnabled
     public static Map<String, Object> fetchDataMap(Map<String, Object> params) {
-        String objectName = params.containsKey('objectName') ? (String)params.get('objectName') : null;
-        String fields = params.containsKey('fields') ? (String)params.get('fields') : null;
-        String queryFilters = params.containsKey('queryFilters') ? (String)params.get('queryFilters') : null;
-        String sortBy = params.containsKey('sortBy') ? (String)params.get('sortBy') : null;
-        String queryType = params.containsKey('queryType') ? (String)params.get('queryType') : null;
-        String soslSearchTerm = params.containsKey('soslSearchTerm') ? (String)params.get('soslSearchTerm') : null;
-        Boolean sortAsc = params.containsKey('sortAsc') ? (Boolean)params.get('sortAsc') : false;
-        Integer limitRecords = params.containsKey('limitRecords') ? Integer.valueOf(params.get('limitRecords')) : null;
+        String objectName     = (String)params.get('objectName');
+        String fields         = (String)params.get('fields');
+        String queryFilters   = (String)params.get('queryFilters');
+        String sortBy         = (String)params.get('sortBy');
+        String queryType      = (String)params.get('queryType');
+        String soslSearchTerm = (String)params.get('soslSearchTerm');
+        Boolean sortAsc       = (Boolean)params.get('sortAsc') ?? false;
+        Integer limitRecords  = Integer.valueOf(params.get('limitRecords'));
 
         try{
             //Initial checks
@@ -92,7 +93,7 @@ public with sharing class datatableController {
 
             //Query initialization for Soql and Sosl
             if(queryType == 'SOQL'){
-                query = 'SELECT Id, ' + fields + ' FROM ' + objectName;
+                query = 'SELECT ' + fields + ' FROM ' + objectName;
             }
             else if(queryType == 'SOSL') {
                 query = 'Id, ' + fields;
