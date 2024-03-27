@@ -12,7 +12,30 @@
  * 1.0    8/1/2019, 11:08:28 AM   Sasank Subrahmanyam V     Initial Version
  * Alon Waisman, 2/24/2023: Added support for sorting by related fields
  * Alon Waisman, 2/27/2023: Added support for live fetching of field labels and type (so they don't need to be added in the table config)
+ * Alon Waisman, 3/27/2024: Added support for linked relationship fields (and setting what is used as the label, instead of just showing the Id)
+ *                          Improved async management
+ *
+ * EXAMPLE CONFIG IN CUSTOM LWC:
+ *
+ *     --- JAVASCRIPT ---
+ *     connectedCallback() {
+ *         this.config = {objectName: 'Some_SObject__c',
+ *                        queryFilters: <entire string WHERE Clause (excluding the actual WHERE word)>,
+ *                        pageSize: 5000,
+ *                        hidePagination: true,
+ *                        tableConfig: {columns: [{sortable: true, api: 'Id', label: 'Link to Record', linkToRecord: true, type: 'url', typeAttributes: {label: {fieldName: 'Name'}, target: '_blank'}},
+ *                                                {sortable: true, api: 'Parent_Relationship_Field__c', label: 'Link to Related Parent Record', linkToRecord: true, type: 'url', typeAttributes: {label: {fieldName: 'Relationship_Field__r.Name'}, target: '_blank'}},
+ *                                                {sortable: true, api: 'Parent_Relationship_Field__r.Parent_Relationship_Field__c', label: 'Link to Related Grandparent Record', linkToRecord: true, type: 'url', typeAttributes: {label: {fieldName: 'Parent_Relationship_Field__r.Parent_Relationship_Field__r.Something_Other_Than_Name__c'}, target: '_blank'}},
+ *                                                {sortable: true, api: 'Field_on_Primary_Record_A__c', label: 'Custom Column Header'},
+ *                                                {api: 'Field_on_Primary_Record_B__c'}, <- not including the label will default to the fields ordinary label
+ *                                                {sortable: true, api: 'Text__c'}]}
+ *                     };
+ *     }
+ *
+ *     --- HTML ---
+ *     <c-datatable config={config}></c-datatable>
 **/
+
 import { LightningElement, api, track } from 'lwc';
 import fetchDataMap       from '@salesforce/apex/datatableController.fetchDataMap';
 import fetchDataMapCached from '@salesforce/apex/datatableController.fetchDataMapCached';
@@ -70,7 +93,7 @@ export default class Datatable extends LightningElement {
         totalPages: 0
     };
     _initDone = false;
-    _soslMinCharsError = "Please enter atleast 2 characters to search";
+    _soslMinCharsError = "Please enter at least 2 characters to search";
 
 
     // exposed api methods ----------------------------------------------------------------------------------------
@@ -147,9 +170,26 @@ export default class Datatable extends LightningElement {
 
     // initialization of component
     connectedCallback() {
-        this.processConfig();
+        this.setPropertiesFromConfig();
+
+        if (this.config.hasOwnProperty("table-config") || this.config.hasOwnProperty("tableConfig")) {
+            this.tableConfig = this.config["table-config"] || this.config.tableConfig;
+
+            let columnsClone = JSON.parse(JSON.stringify(this.tableConfig.columns));
+            let apiNames     = this.apiNames(columnsClone);
+            this.fields      = apiNames.join();
+
+            getFieldInfo({ objectName: this.objectName, fieldNames: apiNames })
+                .then(fieldInfo => {
+                    this.setTableProperties(fieldInfo, columnsClone);
+                    this.fetchRecords();
+                });
+        }
+        else {
+            this.fetchRecords();
+        }
+
         this.userMessage = this.userMessages.init; // set initial user message
-        this.fetchRecords();
         this._originTagRowSelectionLocal = "LIGHTNING-DATATABLE"; // initialising to the expected source tag
         this._initDone = true;
     }
@@ -229,122 +269,92 @@ export default class Datatable extends LightningElement {
         }
 
     // init processing ------------------------------------------------------------------------------------
-    processConfig() {
-        if (this.config.hasOwnProperty("object-name") || this.config.hasOwnProperty("objectName"))
-            this.objectName = this.config["object-name"] || this.config.objectName;
-        if (this.config.hasOwnProperty("sort-by") || this.config.hasOwnProperty("sortBy"))
-            this.sortBy = this.config["sort-by"] || this.config.sortBy;
-        if (this.config.hasOwnProperty("sort-asc") || this.config.hasOwnProperty("sortAsc"))
-            this.sortAsc = this.config["sort-asc"] || this.config.sortAsc;
-        if (this.config.hasOwnProperty("limit"))
-            this.limit = this.config.limit;
-        if (this.config.hasOwnProperty("cacheable"))
-            this.cacheable = this.config.cacheable;
-        if (this.config.hasOwnProperty("height"))
-            this.height = this.config.height;
+        setPropertiesFromConfig() {
+            if (this.config.hasOwnProperty("object-name") || this.config.hasOwnProperty("objectName"))
+                this.objectName = this.config["object-name"] || this.config.objectName;
+            if (this.config.hasOwnProperty("sort-by") || this.config.hasOwnProperty("sortBy"))
+                this.sortBy = this.config["sort-by"] || this.config.sortBy;
+            if (this.config.hasOwnProperty("sort-asc") || this.config.hasOwnProperty("sortAsc"))
+                this.sortAsc = this.config["sort-asc"] || this.config.sortAsc;
+            if (this.config.hasOwnProperty("limit"))
+                this.limit = this.config.limit;
+            if (this.config.hasOwnProperty("cacheable"))
+                this.cacheable = this.config.cacheable;
+            if (this.config.hasOwnProperty("height"))
+                this.height = this.config.height;
 
-        if (this.config.hasOwnProperty("query-type") || this.config.hasOwnProperty("queryType"))
-            this.queryType = this.config["query-type"] || this.config.queryType;
+            if (this.config.hasOwnProperty("query-type") || this.config.hasOwnProperty("queryType"))
+                this.queryType = this.config["query-type"] || this.config.queryType;
 
-        if (this.config.hasOwnProperty("hide-pagination") || this.config.hasOwnProperty("hidePagination"))
-            this.hidePagination = this.config["hide-pagination"] || this.config.hidePagination;
+            if (this.config.hasOwnProperty("hide-pagination") || this.config.hasOwnProperty("hidePagination"))
+                this.hidePagination = this.config["hide-pagination"] || this.config.hidePagination;
 
-        if (this.config.hasOwnProperty("hide-table-spinner") || this.config.hasOwnProperty("hideTableSpinner"))
-            this.hideTableSpinner = this.config["hide-table-spinner"] || this.config.hideTableSpinner;
+            if (this.config.hasOwnProperty("hide-table-spinner") || this.config.hasOwnProperty("hideTableSpinner"))
+                this.hideTableSpinner = this.config["hide-table-spinner"] || this.config.hideTableSpinner;
 
-        if (this.config.hasOwnProperty("user-messages") || this.config.hasOwnProperty("userMessages"))
-            this.userMessages = this.config["user-messages"] || this.config.userMessages;
+            if (this.config.hasOwnProperty("user-messages") || this.config.hasOwnProperty("userMessages"))
+                this.userMessages = this.config["user-messages"] || this.config.userMessages;
 
-        if (this.config.hasOwnProperty("page-size") || this.config.hasOwnProperty("pageSize"))
-            this.pageSize = this.config["page-size"] || this.config.pageSize;
+            if (this.config.hasOwnProperty("page-size") || this.config.hasOwnProperty("pageSize"))
+                this.pageSize = this.config["page-size"] || this.config.pageSize;
 
-        if (this.config.hasOwnProperty("query-filters") || this.config.hasOwnProperty("queryFilters"))
-            this.queryFilters = this.config["query-filters"] || this.config.queryFilters;
+            if (this.config.hasOwnProperty("query-filters") || this.config.hasOwnProperty("queryFilters"))
+                this.queryFilters = this.config["query-filters"] || this.config.queryFilters;
 
-        if (this.config.hasOwnProperty("sosl-search-term") || this.config.hasOwnProperty("soslSearchTerm"))
-            this.soslSearchTerm = this.config["sosl-search-term"] || this.config.soslSearchTerm;
-
-        if (this.config.hasOwnProperty("table-config") || this.config.hasOwnProperty("tableConfig")) {
-            this.tableConfig = this.config["table-config"] || this.config.tableConfig;
-            this.processTableConfig();
+            if (this.config.hasOwnProperty("sosl-search-term") || this.config.hasOwnProperty("soslSearchTerm"))
+                this.soslSearchTerm = this.config["sosl-search-term"] || this.config.soslSearchTerm;
         }
-    }
 
     // get datatable attributes --------------------------------------------------------------------------
-    processTableConfig() {
-        this.manageColumns();
-        this.tableProps.sortedBy = "";
-        this.tableProps.sortedDirection = "";
-        if (this.tableConfig.hasOwnProperty("hideCheckboxColumn") || this.tableConfig.hasOwnProperty("hide-checkbox-column"))
-            this.tableProps.hideCheckboxColumn = this.tableConfig.hideCheckboxColumn || this.tableConfig["hide-checkbox-column"];
-        else this.tableProps.hideCheckboxColumn = false;
-        if (this.tableConfig.hasOwnProperty("showRowNumberColumn") || this.tableConfig.hasOwnProperty("show-row-number-column"))
-            this.tableProps.showRowNumberColumn = this.tableConfig.showRowNumberColumn || this.tableConfig["show-row-number-column"];
-        else this.tableProps.showRowNumberColumn = false;
-        if (this.tableConfig.hasOwnProperty("rowNumberOffset") || this.tableConfig.hasOwnProperty("row-number-offset"))
-            this.tableProps.rowNumberOffset = this.tableConfig.rowNumberOffset || this.tableConfig["row-number-offset"];
-        else this.tableProps.rowNumberOffset = 0;
-        if (this.tableConfig.hasOwnProperty("resizeColumnDisabled") || this.tableConfig.hasOwnProperty("resize-column-disabled"))
-            this.tableProps.resizeColumnDisabled = this.tableConfig.resizeColumnDisabled || this.tableConfig["resize-column-disabled"];
-        else this.tableProps.resizeColumnDisabled = false;
-        if (this.tableConfig.hasOwnProperty("minColumnWidth") || this.tableConfig.hasOwnProperty("min-column-width"))
-            this.tableProps.minColumnWidth = this.tableConfig.minColumnWidth || this.tableConfig["min-column-width"];
-        else this.tableProps.minColumnWidth = "50px";
-        if (this.tableConfig.hasOwnProperty("maxColumnWidth") || this.tableConfig.hasOwnProperty("max-column-width"))
-            this.tableProps.maxColumnWidth = this.tableConfig.maxColumnWidth || this.tableConfig["max-column-width"];
-        else this.tableProps.maxColumnWidth = "1000px";
-        if (this.tableConfig.hasOwnProperty("resizeStep") || this.tableConfig.hasOwnProperty("resize-step"))
-            this.tableProps.resizeStep = this.tableConfig.resizeStep || this.tableConfig["resize-step"];
-        else this.tableProps.resizeStep = "10px";
-        if (this.tableConfig.hasOwnProperty("defaultSortDirection") || this.tableConfig.hasOwnProperty("default-sort-direction"))
-            this.tableProps.defaultSortDirection = this.tableConfig.defaultSortDirection || this.tableConfig["default-sort-direction"];
-        else this.tableProps.defaultSortDirection = "asc";
-        if (this.tableConfig.hasOwnProperty("enableInfiniteLoading") || this.tableConfig.hasOwnProperty("enable-infinite-loading"))
-            this.tableProps.enableInfiniteLoading = this.tableConfig.enableInfiniteLoading || this.tableConfig["enable-infinite-loading"];
-        else this.tableProps.enableInfiniteLoading = false;
-        if (this.tableConfig.hasOwnProperty("loadMoreOffset") || this.tableConfig.hasOwnProperty("load-more-offset"))
-            this.tableProps.loadMoreOffset = this.tableConfig.loadMoreOffset || this.tableConfig["load-more-offset"];
-        else this.tableProps.loadMoreOffset = false;
-        if (this.tableConfig.hasOwnProperty("isLoading") || this.tableConfig.hasOwnProperty("is-loading"))
-            this.tableProps.isLoading = this.tableConfig.isLoading || this.tableConfig["is-loading"];
-        else this.tableProps.isLoading = false;
-        if (this.tableConfig.hasOwnProperty("maxRowSelection") || this.tableConfig.hasOwnProperty("max-row-selection"))
-            this.tableProps.maxRowSelection = this.tableConfig.maxRowSelection || this.tableConfig["max-row-selection"];
-        else this.tableProps.maxRowSelection = 1000;
-        if (this.tableConfig.hasOwnProperty("selectedRows") || this.tableConfig.hasOwnProperty("selected-rows"))
-            this.tableProps.selectedRows = this.tableConfig.selectedRows || this.tableConfig["selected-rows"];
-        else this.tableProps.selectedRows = [];
-        if (this.tableConfig.hasOwnProperty("errors"))
-            this.tableProps.errors = this.tableConfig.errors;
-        else this.tableProps.errors = null;
-        if (this.tableConfig.hasOwnProperty("draftValues") || this.tableConfig.hasOwnProperty("draft-values"))
-            this.tableProps.draftValues = this.tableConfig.draftValues || this.tableConfig["draft-values"];
-        else this.tableProps.draftValues = null;
-        if (this.tableConfig.hasOwnProperty("hideTableHeader") || this.tableConfig.hasOwnProperty("hide-table-header"))
-            this.tableProps.hideTableHeader = this.tableConfig.hideTableHeader || this.tableConfig["hide-table-header"];
-        else this.tableProps.hideTableHeader = false;
-        if (this.tableConfig.hasOwnProperty("suppressBottomBar") || this.tableConfig.hasOwnProperty("suppress-bottom-bar"))
-            this.tableProps.suppressBottomBar = this.tableConfig.suppressBottomBar || this.tableConfig["suppress-bottom-bar"];
-        else this.tableProps.suppressBottomBar = false;
-    }
-        manageColumns() {
-            let columnsClone = JSON.parse(JSON.stringify(this.tableConfig.columns));
-            let apiNames     = columnsClone.filter(col => col.hasOwnProperty("api")).map(col => col.api);
-            this.fields      = apiNames.join();
+        setTableProperties(fieldInfo, columns) {
+            columns.forEach(column => {
+                if (fieldInfo.hasOwnProperty(column.api)) {
+                    if (!column.hasOwnProperty('fieldName')) { column.fieldName = column.api; }
+                    if (!column.hasOwnProperty('label'))     { column.label     = fieldInfo[column.api].label; }
+                    if (!column.hasOwnProperty('type'))      { column.type      = fieldInfo[column.api].type; }
+                }
+            });
 
-            getFieldInfo({ objectName: this.objectName, fieldNames: apiNames })
-                .then(fieldInfo => {
-                    columnsClone.forEach(column => {
-                        if (fieldInfo.hasOwnProperty(column.api)) {
-                            if (!column.hasOwnProperty('fieldName')) { column.fieldName = column.api; }
-                            if (!column.hasOwnProperty('label'))     { column.label     = fieldInfo[column.api].label; }
-                            if (!column.hasOwnProperty('type'))      { column.type      = fieldInfo[column.api].type; }
-                        }
-                    });
+            this.tableProps.columns = columns;
 
-                    this.tableProps.columns = columnsClone;
-                });
+            this.tableProps.sortedBy = "";
+            this.tableProps.sortedDirection = "";
+
+            this.setTableProperty("hideCheckboxColumn", "hide-checkbox-column", false);
+            this.setTableProperty("showRowNumberColumn", "show-row-number-column", false);
+            this.setTableProperty("rowNumberOffset", "row-number-offset", 0);
+            this.setTableProperty("resizeColumnDisabled", "resize-column-disabled", false);
+            this.setTableProperty("minColumnWidth", "min-column-width", "50px");
+            this.setTableProperty("maxColumnWidth", "max-column-width", "1000px");
+            this.setTableProperty("resizeStep", "resize-step", "10px");
+            this.setTableProperty("defaultSortDirection", "default-sort-direction", "asc");
+            this.setTableProperty("enableInfiniteLoading", "enable-infinite-loading", false);
+            this.setTableProperty("loadMoreOffset", "load-more-offset", false);
+            this.setTableProperty("isLoading", "is-loading", false);
+            this.setTableProperty("maxRowSelection", "max-row-selection", 1000);
+            this.setTableProperty("selectedRows", "selected-rows", []);
+            this.setTableProperty("errors", "errors", null);
+            this.setTableProperty("draftValues", "draft-values", null);
+            this.setTableProperty("hideTableHeader", "hide-table-header", false);
+            this.setTableProperty("suppressBottomBar", "suppress-bottom-bar", false);
         }
+            apiNames(columns) {
+                let apiNames = [];
+                columns.filter(col => col.hasOwnProperty("api")).forEach(col => {
+                    apiNames.push(col.api);
+                    if (col.typeAttributes?.label?.fieldName) {
+                        apiNames.push(col.typeAttributes.label.fieldName);
+                    }
+                });
+
+                return Array.from(new Set(apiNames));
+            }
+            setTableProperty(camelCaseProperty, kebabCaseProperty, defaultValue) {
+                if (this.tableConfig.hasOwnProperty(camelCaseProperty) || this.tableConfig.hasOwnProperty(kebabCaseProperty)) {
+                    this.tableProps[camelCaseProperty] = this.tableConfig[camelCaseProperty] || this.tableConfig[kebabCaseProperty];
+                }
+                else this.tableProps[camelCaseProperty] = defaultValue;
+            }
 
     // retrieve the records form database
     fetchRecords() {
@@ -395,13 +405,31 @@ export default class Datatable extends LightningElement {
         this.handleSpinner(false, "");
 
         if (recordsListResult && recordsListResult.length > 0) {
-            this._recordsListInAllPages = recordsListResult;
+            this._recordsListInAllPages = this.tableProps.columns ? this.recordsWithRelatedFieldsAndLinks(recordsListResult) : recordsListResult;
             this._paginationInfo.totalPages = (((this._recordsListInAllPages.length / this.pageSize) - ((this._recordsListInAllPages.length % this.pageSize) / this.pageSize)) + (((this._recordsListInAllPages.length % this.pageSize) === 0) ? 0 : 1));
             this.processRecordsListPagination();
         } else {
             this.doDataReset();
             this.handleSpinner(false, this.userMessages.noRecords);
         }
+    }
+
+    recordsWithRelatedFieldsAndLinks(records) {
+        return records.map(thisRow => {
+            let currentRow = Object.assign({}, thisRow);
+
+            this.tableProps.columns.forEach(col => {
+                if (col.hasOwnProperty("api")) {
+                    currentRow[col.fieldName] = this.getFieldValueFromObject(currentRow, col.api);
+                    if (col.linkToRecord && col.typeAttributes.label.fieldName) {
+                        currentRow[col.fieldName] = '/' + currentRow[col.fieldName];
+                        currentRow[col.typeAttributes.label.fieldName] = this.relatedFieldValue(currentRow, col.typeAttributes.label.fieldName);
+                    }
+                }
+            });
+
+            return currentRow;
+        });
     }
 
     // paginate the records
@@ -420,12 +448,8 @@ export default class Datatable extends LightningElement {
         this.tableProps.selectedRows = [];
         this.recordsListInPage = this.recordsListInPage.map(thisRow => {
             let currentRow = Object.assign({}, thisRow);
-            if (this.selectedRowsMap.hasOwnProperty(currentRow.Id))
-                this.tableProps.selectedRows.push(currentRow.Id);
-            this.tableProps.columns.forEach(col => {
-                if (col.hasOwnProperty("api"))
-                    currentRow[col.fieldName] = this.getFieldValueFromObject(currentRow, col.api);
-            });
+            if (this.selectedRowsMap.hasOwnProperty(currentRow.Id)) {this.tableProps.selectedRows.push(currentRow.Id);}
+
             return currentRow;
         });
     }
@@ -521,7 +545,7 @@ export default class Datatable extends LightningElement {
     }
 
     get pagesInfo() {
-        if (this._recordsListInAllPages.length > 0) {
+        if (this._recordsListInAllPages?.length > 0) {
             this._paginationInfo.currentPage = (((this._startFromIndex + 1) / this.pageSize) - (((this._startFromIndex + 1) % this.pageSize) / this.pageSize) + ((((this._startFromIndex + 1) % this.pageSize) === 0) ? 0 : 1));
             return 'Page ' + this._paginationInfo.currentPage + ' of ' + this._paginationInfo.totalPages;
         }
@@ -529,7 +553,7 @@ export default class Datatable extends LightningElement {
     }
 
     get recordsInfo() {
-        if (this._recordsListInAllPages.length > 0) {
+        if (this._recordsListInAllPages?.length > 0) {
             this._endIndex = this._startFromIndex + this.pageSize;
             return 'Showing ' + (this._startFromIndex + 1) + " to " + ((this._endIndex > this._recordsListInAllPages.length) ? this._recordsListInAllPages.length : this._endIndex) + " of " + this._recordsListInAllPages.length + " records";
         }
